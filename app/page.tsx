@@ -5,11 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
-  BarChart3,
   Boxes,
   ChevronRight,
   Crosshair,
-  Database,
   Flame,
   HardDriveDownload,
   Loader2,
@@ -320,17 +318,6 @@ export default function HomePage() {
 
                 {playerPayload ? (
                   <div className="mt-4 space-y-3">
-                    <StatusLine
-                      label="Source"
-                      value={
-                        playerPayload.source === "mock"
-                          ? "Mock local (démo)"
-                          : playerPayload.source === "live_api"
-                            ? "Deadlock API (live)"
-                            : "Base Postgres"
-                      }
-                      tone={playerPayload.source === "mock" ? "pink" : "lime"}
-                    />
                     <StatusLine
                       label="Winrate global"
                       value={`${playerPayload.aggregates.winrate}% (${playerPayload.aggregates.wins}W/${playerPayload.aggregates.losses}L)`}
@@ -709,48 +696,6 @@ export default function HomePage() {
           </div>
 
           <div className="space-y-6">
-            <div className="panel-cut p-5 shadow-panel">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="display-text text-2xl font-bold uppercase text-white">
-                  État du Backend
-                </h3>
-                <span className="text-xs uppercase tracking-[0.16em] text-zinc-400">
-                  Railway Ready
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                <AccessRow
-                  icon={<Database className="h-4 w-4 text-neon-lime" />}
-                  title="Prisma + Postgres"
-                  status="Schéma PostgreSQL prêt pour Railway (`DATABASE_URL`)."
-                />
-                <AccessRow
-                  icon={<BarChart3 className="h-4 w-4 text-neon-cyan" />}
-                  title="API Tracker"
-                  status="`/api/deadlock/player`, `/api/deadlock/meta`, `/api/health` disponibles."
-                />
-                <AccessRow
-                  icon={<Shield className="h-4 w-4 text-neon-pink" />}
-                  title="Mode Démo"
-                  status="Données synthétiques cohérentes pour naviguer tout le site sans source externe."
-                />
-              </div>
-
-              {(playerPayload?.notes.length || metaPayload?.notes.length) ? (
-                <div className="mt-4 border border-white/5 bg-black/20 p-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Notes</p>
-                  <ul className="mt-2 space-y-1 text-xs text-zinc-300">
-                    {[...(playerPayload?.notes ?? []), ...(metaPayload?.notes ?? [])]
-                      .slice(0, 4)
-                      .map((note, index) => (
-                        <li key={`${note}-${index}`}>{note}</li>
-                      ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-
             <div className="panel-cut panel-cut-lime p-5 shadow-panel">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="display-text text-2xl font-bold uppercase text-white">
@@ -968,26 +913,6 @@ function MetricCard({
     <div className="border border-white/5 bg-black/20 px-3 py-3">
       <p className="text-xs uppercase tracking-[0.15em] text-zinc-400">{label}</p>
       <p className={`display-text mt-1 text-2xl font-extrabold ${color}`}>{value}</p>
-    </div>
-  );
-}
-
-function AccessRow({
-  icon,
-  title,
-  status,
-}: {
-  icon: ReactNode;
-  title: string;
-  status: string;
-}) {
-  return (
-    <div className="border border-white/5 bg-black/20 p-3">
-      <div className="flex items-center gap-2">
-        {icon}
-        <p className="display-text text-lg font-bold uppercase text-white">{title}</p>
-      </div>
-      <p className="mt-1 text-sm text-zinc-400">{status}</p>
     </div>
   );
 }
