@@ -4,9 +4,12 @@ import {
 } from "@/lib/deadlock/mock";
 import {
   buildLiveDeadlockMetaSnapshot,
+  buildLiveDeadlockLeaderboard,
   buildLiveDeadlockPlayerProfile,
 } from "@/lib/deadlock/live";
 import type {
+  DeadlockLeaderboardPayload,
+  DeadlockLeaderboardRegion,
   DeadlockMetaPayload,
   DeadlockPlayerProfilePayload,
 } from "@/lib/types/deadlock";
@@ -52,4 +55,12 @@ export async function getDeadlockMetaStats(): Promise<DeadlockMetaPayload> {
     console.error("Deadlock live meta failed (mock fallback disabled)", error);
     throw error;
   }
+}
+
+export async function getDeadlockLeaderboard(params: {
+  region: DeadlockLeaderboardRegion;
+  limit: number;
+  heroId?: number | null;
+}): Promise<DeadlockLeaderboardPayload> {
+  return buildLiveDeadlockLeaderboard(params);
 }

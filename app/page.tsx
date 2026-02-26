@@ -2,10 +2,12 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
   Boxes,
+  Crown,
   ChevronRight,
   Crosshair,
   Flame,
@@ -56,7 +58,15 @@ export default function HomePage() {
 
   useEffect(() => {
     void loadMeta();
-    void loadPlayer(DEFAULT_STEAM_ID64, 20);
+    const params = new URLSearchParams(window.location.search);
+    const steamIdFromUrl = params.get("steamId64")?.trim() ?? "";
+    const countFromUrl = Number.parseInt(params.get("count")?.trim() ?? "20", 10);
+    const initialSteamId = /^\d{17}$/.test(steamIdFromUrl) ? steamIdFromUrl : DEFAULT_STEAM_ID64;
+    const initialCount =
+      Number.isFinite(countFromUrl) && countFromUrl >= 1 && countFromUrl <= 50 ? countFromUrl : 20;
+    setQuery(initialSteamId);
+    setCount(String(initialCount));
+    void loadPlayer(initialSteamId, initialCount);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -242,6 +252,11 @@ export default function HomePage() {
               {metaLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HardDriveDownload className="h-3.5 w-3.5" />}
               Rafraîchir la méta
             </button>
+            <span>•</span>
+            <Link href="/leaderboard" className="inline-flex items-center gap-1 text-neon-lime hover:brightness-110">
+              <Crown className="h-3.5 w-3.5" />
+              Leaderboard
+            </Link>
           </div>
 
           {playerError ? (

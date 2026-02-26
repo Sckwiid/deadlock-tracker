@@ -134,6 +134,40 @@ export interface DeadlockMetaPayload {
   notes: string[];
 }
 
+export type DeadlockLeaderboardRegion =
+  | "Europe"
+  | "Asia"
+  | "NAmerica"
+  | "SAmerica"
+  | "Oceania";
+
+export interface DeadlockLeaderboardHeroRef {
+  heroId: number;
+  hero: string;
+  heroIconUrl?: string | null;
+}
+
+export interface DeadlockLeaderboardEntry {
+  position: number;
+  accountName: string;
+  primaryAccountId: number | null;
+  steamId64: string | null;
+  badgeLevel: number | null;
+  rankLabel: string | null;
+  rankBadgeIconUrl?: string | null;
+  topHeroes: DeadlockLeaderboardHeroRef[];
+}
+
+export interface DeadlockLeaderboardPayload {
+  ok: true;
+  source: DeadlockDataSource;
+  fetchedAt: string;
+  region: DeadlockLeaderboardRegion;
+  totalEntries: number;
+  entries: DeadlockLeaderboardEntry[];
+  notes: string[];
+}
+
 export interface DeadlockApiErrorPayload {
   ok: false;
   code:
@@ -152,3 +186,6 @@ export type DeadlockPlayerLookupResponse =
   | DeadlockApiErrorPayload;
 
 export type DeadlockMetaResponse = DeadlockMetaPayload | DeadlockApiErrorPayload;
+export type DeadlockLeaderboardResponse =
+  | DeadlockLeaderboardPayload
+  | DeadlockApiErrorPayload;

@@ -1,5 +1,7 @@
 import type {
   DeadlockCombatStats,
+  DeadlockLeaderboardPayload,
+  DeadlockLeaderboardRegion,
   DeadlockHeroMetaStat,
   DeadlockItemMetaStat,
   DeadlockMatchDetail,
@@ -135,6 +137,20 @@ type PatchApi = {
   pub_date?: string;
 };
 
+type LeaderboardApi = {
+  entries?: LeaderboardEntryApi[];
+};
+
+type LeaderboardEntryApi = {
+  account_name?: string | null;
+  badge_level?: number | null;
+  rank?: number | null;
+  ranked_rank?: number | null;
+  ranked_subrank?: number | null;
+  possible_account_ids?: number[];
+  top_hero_ids?: number[];
+};
+
 type RankAssetApi = {
   badge_level?: number;
   rank?: number;
@@ -190,6 +206,14 @@ let assetsCachePromise: Promise<DeadlockAssetsCatalog> | null = null;
 
 let metaCache: { expiresAt: number; data: DeadlockMetaPayload } | null = null;
 let metaCachePromise: Promise<DeadlockMetaPayload> | null = null;
+
+const VALID_LEADERBOARD_REGIONS = new Set<DeadlockLeaderboardRegion>([
+  "Europe",
+  "Asia",
+  "NAmerica",
+  "SAmerica",
+  "Oceania",
+]);
 
 export async function buildLiveDeadlockPlayerProfile(params: {
   steamId64: string;
@@ -355,6 +379,78 @@ export async function buildLiveDeadlockPlayerProfile(params: {
       "Profil, historique, KDA, durée, résultat, net worth (souls), rang et méta sont des données réelles.",
       "Détail de dégâts/healing/build/skill build est enrichi depuis des stats analytics agrégées par héros du joueur quand la metadata protobuf de match n’est pas décodée.",
       "Répartition détaillée des Souls (creeps/joueurs/objectifs) n’est pas exposée en JSON direct par les endpoints utilisés ici.",
+    ],
+  };
+}
+
+export async function buildLiveDeadlockLeaderboard(params: {
+  region: DeadlockLeaderboardRegion;
+  limit: number;
+  heroId?: number | null;
+}): Promise<DeadlockLeaderboardPayload> {
+  if (!VALID_LEADERBOARD_REGIONS.has(params.region)) {
+    throw new Error(`Invalid leaderboard region: ${params.region}`);
+  }
+
+  const limit = clamp(params.limit, 1, 200);
+  const heroId = params.heroId && params.heroId > 0 ? Math.trunc(params.heroId) : null;
+  const assets = await getAssetsCatalog();
+
+  const path = heroId
+    ? `/v1/leaderboard/${params.region}/${heroId}`
+    : `/v1/leaderboard/${params.region}`;
+
+  const leaderboardRaw = await fetchDeadlockJson<LeaderboardApi>(path);
+  const entriesRaw = Array.isArray(leaderboardRaw?.entries) ? leaderboardRaw.entries : [];
+
+  const entries = entriesRaw.slice(0, limit).map((row, index) => {
+    const badgeLevel = positiveOrNull(row.badge_level);
+    const rankedRank = positiveOrNull(row.ranked_rank);
+    const rankedSubrank = positiveOrNull(row.ranked_subrank);
+    const firstAccountId =
+      (Array.isArray(row.possible_account_ids)
+        ? row.possible_account_ids.map(toInt).find((value) => value > 0)
+        : null) ?? null;
+
+    const topHeroIds = Array.isArray(row.top_hero_ids)
+      ? row.top_hero_ids.map(toInt).filter((value) => value > 0)
+      : [];
+
+    return {
+      position: index + 1,
+      accountName: toStringSafe(row.account_name) || `Player ${index + 1}`,
+      primaryAccountId: firstAccountId,
+      steamId64: firstAccountId ? accountIdToSteamId64(firstAccountId) : null,
+      badgeLevel,
+      rankLabel:
+        badgeLevel !== null
+          ? `Badge ${badgeLevel}`
+          : rankedRank !== null || rankedSubrank !== null
+            ? `Rank ${rankedRank ?? 0}.${rankedSubrank ?? 0}`
+            : null,
+      rankBadgeIconUrl:
+        badgeLevel !== null ? assets.ranksByBadgeLevel.get(badgeLevel)?.iconUrl ?? null : null,
+      topHeroes: topHeroIds.slice(0, 3).map((id) => ({
+        heroId: id,
+        hero: assets.heroesById.get(id)?.name ?? `Hero ${id}`,
+        heroIconUrl: assets.heroesById.get(id)?.iconUrl ?? null,
+      })),
+    };
+  });
+
+  return {
+    ok: true,
+    source: "live_api",
+    fetchedAt: new Date().toISOString(),
+    region: params.region,
+    totalEntries: entriesRaw.length,
+    entries,
+    notes: [
+      "Source live: deadlock-api.com leaderboard JSON.",
+      "Les noms de joueurs proviennent du leaderboard et les account IDs possibles peuvent être ambigus (noms Steam non uniques).",
+      heroId
+        ? `Leaderboard filtré sur le héros ID ${heroId}.`
+        : "Leaderboard global par région.",
     ],
   };
 }
@@ -937,6 +1033,22 @@ function steamId64ToAccountId(steamId64: string) {
     throw new Error(`Invalid SteamID64 for account conversion: ${steamId64}`);
   }
   return Number(accountId);
+}
+
+function accountIdToSteamId64(accountId: number) {
+  if (!Number.isFinite(accountId) || accountId <= 0) {
+    return null;
+  }
+  try {
+    return (BigInt(Math.trunc(accountId)) + STEAM_ID64_OFFSET).toString();
+  } catch {
+    return null;
+  }
+}
+
+function positiveOrNull(value: unknown) {
+  const parsed = toInt(value);
+  return parsed > 0 ? parsed : null;
 }
 
 function deriveRankBadgeLevel(card: PlayerCardApi | null, mmr: MmrHistoryApi | null) {
