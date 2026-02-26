@@ -1,0 +1,181 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 18 18 18;
+  --panel: 26 26 26;
+  --panel-2: 32 32 32;
+  --ink: 244 244 245;
+  --muted: 161 161 170;
+  --neon-pink: 255 0 127;
+  --neon-cyan: 0 255 255;
+  --neon-lime: 191 255 0;
+  --font-inter: "Segoe UI", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: "Arial Narrow", "Impact", "Helvetica Neue", sans-serif;
+}
+
+* {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  position: relative;
+  isolation: isolate;
+  color: rgb(var(--ink));
+  font-family: var(--font-inter), Inter, sans-serif;
+  background-color: rgb(var(--bg));
+  background-image:
+    radial-gradient(circle at 18% 14%, rgba(var(--neon-pink), 0.08), transparent 38%),
+    radial-gradient(circle at 85% 12%, rgba(var(--neon-cyan), 0.07), transparent 40%),
+    radial-gradient(circle at 62% 100%, rgba(var(--neon-lime), 0.05), transparent 45%),
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size:
+    auto,
+    auto,
+    auto,
+    48px 48px,
+    48px 48px;
+  background-position:
+    center,
+    center,
+    center,
+    0 0,
+    0 0;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.7) 0.6px, transparent 0.6px),
+    radial-gradient(rgba(255, 255, 255, 0.45) 0.6px, transparent 0.6px);
+  background-size: 3px 3px, 5px 5px;
+  background-position: 0 0, 1px 2px;
+  mix-blend-mode: soft-light;
+  z-index: 0;
+}
+
+::selection {
+  background: rgba(var(--neon-pink), 0.35);
+  color: white;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  .display-text {
+    font-family: var(--font-display), sans-serif;
+    font-style: italic;
+    letter-spacing: 0.03em;
+  }
+}
+
+@layer components {
+  .panel-cut {
+    position: relative;
+    clip-path: polygon(
+      0 12px,
+      12px 0,
+      calc(100% - 16px) 0,
+      100% 16px,
+      100% 100%,
+      16px 100%,
+      0 calc(100% - 16px)
+    );
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+    background-color: rgba(var(--panel), 0.88);
+    backdrop-filter: blur(10px);
+  }
+
+  .panel-cut::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    clip-path: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      120deg,
+      rgba(var(--neon-pink), 0.35),
+      rgba(255, 255, 255, 0.08),
+      rgba(var(--neon-cyan), 0.35)
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .panel-cut-lime::after {
+    background: linear-gradient(
+      120deg,
+      rgba(var(--neon-lime), 0.42),
+      rgba(255, 255, 255, 0.07),
+      rgba(var(--neon-cyan), 0.25)
+    );
+  }
+
+  .hero-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid rgba(var(--neon-cyan), 0.25);
+    background: rgba(var(--neon-cyan), 0.06);
+    color: rgb(var(--neon-cyan));
+    clip-path: polygon(
+      0 8px,
+      8px 0,
+      100% 0,
+      100% calc(100% - 8px),
+      calc(100% - 8px) 100%,
+      0 100%
+    );
+  }
+}
+
+@layer utilities {
+  .text-neon-pink {
+    color: rgb(var(--neon-pink));
+    text-shadow: 0 0 18px rgba(var(--neon-pink), 0.28);
+  }
+
+  .text-neon-cyan {
+    color: rgb(var(--neon-cyan));
+    text-shadow: 0 0 18px rgba(var(--neon-cyan), 0.24);
+  }
+
+  .text-neon-lime {
+    color: rgb(var(--neon-lime));
+    text-shadow: 0 0 16px rgba(var(--neon-lime), 0.22);
+  }
+
+  .grid-faint {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+
+  .mask-fade-bottom {
+    mask-image: linear-gradient(to bottom, black 75%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

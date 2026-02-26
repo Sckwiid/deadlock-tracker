@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MatchResult {
+  WIN
+  LOSS
+}
+
+enum QueueType {
+  QUICKPLAY
+  RANKED
+  CUSTOM
+}
+
+model Player {
+  id                   String   @id @default(cuid())
+  steamId64            String   @unique
+  personaName          String
+  region               String?
+  accountLevel         Int?
+  totalPlaytimeSeconds Int      @default(0)
+  rankTier             String?
+  hiddenMmr            Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  participations MatchParticipant[]
+
+  @@index([personaName])
+  @@index([updatedAt])
+}
+
+model Hero {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  picks MatchParticipant[]
+  bans  MatchBan[]
+}
+
+model Item {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String   @unique
+  tier      Int?
+  cost      Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases MatchItemPurchase[]
+}
+
+model Match {
+  id              String    @id @default(cuid())
+  externalMatchId String    @unique
+  queueType       QueueType @default(QUICKPLAY)
+  patchVersion    String?
+  startedAt       DateTime
+  durationSeconds Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  participants MatchParticipant[]
+  bans         MatchBan[]
+
+  @@index([startedAt])
+  @@index([queueType])
+}
+
+model MatchParticipant {
+  id                 String      @id @default(cuid())
+  matchId            String
+  playerId           String
+  heroId             String
+  result             MatchResult
+  teamSide           Int?
+  kills              Int         @default(0)
+  deaths             Int         @default(0)
+  assists            Int         @default(0)
+  kdaPerMinute       Float?
+  totalSouls         Int         @default(0)
+  soulsPerMinute     Float?
+  soulsFromCreeps    Int?
+  soulsFromPlayers   Int?
+  soulsFromObjectives Int?
+  soulsFromOther     Int?
+  playerDamage       Int?
+  objectiveDamage    Int?
+  healingDone        Int?
+  itemBuildJson      Json?
+  skillBuildJson     Json?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  match Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  hero  Hero   @relation(fields: [heroId], references: [id], onDelete: Restrict)
+
+  itemPurchases MatchItemPurchase[]
+  skillUpgrades MatchSkillUpgrade[]
+
+  @@unique([matchId, playerId])
+  @@index([playerId, createdAt])
+  @@index([heroId, result])
+  @@index([matchId])
+}
+
+model MatchBan {
+  id         String   @id @default(cuid())
+  matchId     String
+  heroId      String
+  teamSide    Int?
+  orderIndex  Int?
+  createdAt   DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  hero  Hero  @relation(fields: [heroId], references: [id], onDelete: Restrict)
+
+  @@index([heroId])
+  @@index([matchId])
+  @@unique([matchId, heroId, teamSide])
+}
+
+model MatchItemPurchase {
+  id             String   @id @default(cuid())
+  participantId   String
+  itemId          String
+  orderIndex      Int
+  purchasedAtSec  Int?
+  costSnapshot    Int?
+  createdAt       DateTime @default(now())
+
+  participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  item        Item             @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([participantId, orderIndex])
+  @@index([itemId])
+  @@unique([participantId, orderIndex])
+}
+
+model MatchSkillUpgrade {
+  id             String   @id @default(cuid())
+  participantId   String
+  orderIndex      Int
+  abilityName     String
+  levelAfter      Int?
+  upgradedAtSec   Int?
+  createdAt       DateTime @default(now())
+
+  participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@index([participantId, orderIndex])
+  @@unique([participantId, orderIndex])
+}
