@@ -2,6 +2,10 @@ import {
   buildMockMetaSnapshot,
   buildMockPlayerProfile,
 } from "@/lib/deadlock/mock";
+import {
+  buildLiveDeadlockMetaSnapshot,
+  buildLiveDeadlockPlayerProfile,
+} from "@/lib/deadlock/live";
 import type {
   DeadlockMetaPayload,
   DeadlockPlayerProfilePayload,
@@ -15,9 +19,19 @@ export async function getDeadlockPlayerProfile(params: {
   steamId64: string;
   count: number;
 }): Promise<DeadlockPlayerProfilePayload> {
-  return buildMockPlayerProfile(params);
+  try {
+    return await buildLiveDeadlockPlayerProfile(params);
+  } catch (error) {
+    console.error("Deadlock live player profile failed, falling back to mock", error);
+    return buildMockPlayerProfile(params);
+  }
 }
 
 export async function getDeadlockMetaStats(): Promise<DeadlockMetaPayload> {
-  return buildMockMetaSnapshot();
+  try {
+    return await buildLiveDeadlockMetaSnapshot();
+  } catch (error) {
+    console.error("Deadlock live meta failed, falling back to mock", error);
+    return buildMockMetaSnapshot();
+  }
 }

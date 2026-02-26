@@ -322,7 +322,13 @@ export default function HomePage() {
                   <div className="mt-4 space-y-3">
                     <StatusLine
                       label="Source"
-                      value={playerPayload.source === "mock" ? "Mock local (démo)" : "Base Postgres"}
+                      value={
+                        playerPayload.source === "mock"
+                          ? "Mock local (démo)"
+                          : playerPayload.source === "live_api"
+                            ? "Deadlock API (live)"
+                            : "Base Postgres"
+                      }
                       tone={playerPayload.source === "mock" ? "pink" : "lime"}
                     />
                     <StatusLine

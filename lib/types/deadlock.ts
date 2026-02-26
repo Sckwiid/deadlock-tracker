@@ -1,4 +1,4 @@
-export type DeadlockDataSource = "mock" | "database";
+export type DeadlockDataSource = "mock" | "database" | "live_api";
 export type MatchOutcome = "WIN" | "LOSS";
 
 export interface DeadlockPlayerIdentity {
