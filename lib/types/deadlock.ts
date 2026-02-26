@@ -10,6 +10,8 @@ export interface DeadlockPlayerIdentity {
   rankTier: string | null;
   hiddenMmr: number | null;
   profileSeed: string;
+  avatarUrl?: string | null;
+  rankBadgeIconUrl?: string | null;
 }
 
 export interface DeadlockPlayerAggregates {
@@ -61,6 +63,7 @@ export interface DeadlockItemPurchase {
   tier: number;
   cost: number;
   atSecond: number;
+  iconUrl?: string | null;
 }
 
 export interface DeadlockSkillUpgrade {
@@ -73,6 +76,7 @@ export interface DeadlockSkillUpgrade {
 export interface DeadlockMatchDetail {
   matchId: string;
   hero: string;
+  heroIconUrl?: string | null;
   result: MatchOutcome;
   mode: "Quickplay" | "Ranked" | "Custom";
   patchVersion: string;
@@ -99,6 +103,7 @@ export interface DeadlockPlayerProfilePayload {
 
 export interface DeadlockHeroMetaStat {
   hero: string;
+  heroIconUrl?: string | null;
   picks: number;
   wins: number;
   matches: number;
@@ -109,7 +114,9 @@ export interface DeadlockHeroMetaStat {
 
 export interface DeadlockItemMetaStat {
   hero: string;
+  heroIconUrl?: string | null;
   item: string;
+  itemIconUrl?: string | null;
   sampleSize: number;
   winRate: number;
   avgPurchaseOrder: number;

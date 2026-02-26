@@ -270,10 +270,23 @@ export default function HomePage() {
 
                 {playerPayload ? (
                   <>
-                    <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
-                      <h2 className="display-text text-4xl font-extrabold uppercase text-white sm:text-5xl">
-                        {playerPayload.player.personaName}
-                      </h2>
+                    <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
+                      <div className="flex min-w-0 items-end gap-3">
+                        <GameIcon
+                          src={playerPayload.player.avatarUrl}
+                          alt={playerPayload.player.personaName}
+                          size={56}
+                          shape="square"
+                          kind="avatar"
+                        />
+                        <h2 className="display-text min-w-0 truncate text-4xl font-extrabold uppercase text-white sm:text-5xl">
+                          {playerPayload.player.personaName}
+                        </h2>
+                        <RankBadgeVisual
+                          iconUrl={playerPayload.player.rankBadgeIconUrl}
+                          label={playerPayload.player.rankTier}
+                        />
+                      </div>
                       <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
                         {playerPayload.player.region}
                       </span>
@@ -294,6 +307,13 @@ export default function HomePage() {
                             : "Non disponible"
                         }
                         tone="lime"
+                        visual={
+                          <RankBadgeVisual
+                            iconUrl={playerPayload.player.rankBadgeIconUrl}
+                            label={playerPayload.player.rankTier}
+                            compact
+                          />
+                        }
                       />
                       <IdentityRow
                         label="Progression"
@@ -420,7 +440,7 @@ export default function HomePage() {
                         key={match.matchId}
                         type="button"
                         onClick={() => setSelectedMatchId(match.matchId)}
-                        className={`grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border px-3 py-2 text-left transition ${
+                        className={`grid w-full grid-cols-[auto_auto_1fr_auto] items-center gap-3 border px-3 py-2 text-left transition ${
                           selectedMatch?.matchId === match.matchId
                             ? "border-cyan-300/30 bg-cyan-300/5"
                             : "border-white/5 bg-black/20 hover:border-white/15"
@@ -443,6 +463,14 @@ export default function HomePage() {
                         >
                           {match.result === "WIN" ? "W" : "L"}
                         </span>
+
+                        <GameIcon
+                          src={match.heroIconUrl}
+                          alt={match.hero}
+                          size={36}
+                          shape="square"
+                          kind="hero"
+                        />
 
                         <div className="min-w-0">
                           <p className="truncate text-sm text-white">
@@ -633,11 +661,18 @@ export default function HomePage() {
                         {selectedMatch.build.items.map((item) => (
                           <div
                             key={`${selectedMatch.matchId}-item-${item.order}`}
-                            className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border border-white/5 bg-black/20 px-3 py-2"
+                            className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-3 border border-white/5 bg-black/20 px-3 py-2"
                           >
                             <span className="display-text text-lg font-bold text-neon-cyan">
                               #{item.order}
                             </span>
+                            <GameIcon
+                              src={item.iconUrl}
+                              alt={item.itemName}
+                              size={32}
+                              shape="square"
+                              kind="item"
+                            />
                             <div className="min-w-0">
                               <p className="truncate text-sm text-white">{item.itemName}</p>
                               <p className="text-xs text-zinc-400">
@@ -714,9 +749,21 @@ export default function HomePage() {
                   </div>
 
                   <div className="space-y-2">
-                    {metaPayload.heroStats.slice(0, 10).map((hero) => (
-                      <MetaHeroRow key={hero.hero} stat={hero} totalMatches={metaPayload.populationMatches} />
-                    ))}
+                    {[...metaPayload.heroStats]
+                      .sort(
+                        (a, b) =>
+                          b.winRate - a.winRate ||
+                          b.pickRate - a.pickRate ||
+                          b.picks - a.picks,
+                      )
+                      .slice(0, 10)
+                      .map((hero) => (
+                        <MetaHeroRow
+                          key={hero.hero}
+                          stat={hero}
+                          totalMatches={metaPayload.populationMatches}
+                        />
+                      ))}
                   </div>
 
                   <p className="mt-3 text-xs text-zinc-400">
@@ -844,11 +891,13 @@ function IdentityRow({
   value,
   tone,
   mono,
+  visual,
 }: {
   label: string;
   value: string;
   tone: "pink" | "cyan" | "lime";
   mono?: boolean;
+  visual?: ReactNode;
 }) {
   const toneClass =
     tone === "pink"
@@ -860,9 +909,12 @@ function IdentityRow({
   return (
     <div className={`border px-3 py-3 ${toneClass}`}>
       <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-400">{label}</p>
-      <p className={`mt-1 text-sm font-medium text-white ${mono ? "font-mono break-all" : ""}`}>
-        {value}
-      </p>
+      <div className="mt-1 flex items-center gap-2">
+        {visual}
+        <p className={`text-sm font-medium text-white ${mono ? "font-mono break-all" : ""}`}>
+          {value}
+        </p>
+      </div>
     </div>
   );
 }
@@ -1016,7 +1068,10 @@ function MetaHeroRow({
     <div className="border border-white/5 bg-black/20 px-3 py-3">
       <div className="grid grid-cols-[1fr_auto] items-center gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm text-white">{stat.hero}</p>
+          <div className="flex items-center gap-2">
+            <GameIcon src={stat.heroIconUrl} alt={stat.hero} size={30} shape="square" kind="hero" />
+            <p className="truncate text-sm text-white">{stat.hero}</p>
+          </div>
           <p className="text-xs text-zinc-400">
             {stat.picks} picks / {totalMatches} matchs • {stat.wins} wins
           </p>
@@ -1031,6 +1086,89 @@ function MetaHeroRow({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function GameIcon({
+  src,
+  alt,
+  size = 32,
+  shape = "square",
+  kind = "hero",
+}: {
+  src?: string | null;
+  alt: string;
+  size?: number;
+  shape?: "square" | "circle";
+  kind?: "hero" | "item" | "avatar" | "rank";
+}) {
+  const roundedClass = shape === "circle" ? "rounded-full" : "rounded-[6px]";
+  const borderClass =
+    kind === "item"
+      ? "border-cyan-300/15"
+      : kind === "rank"
+        ? "border-lime-300/20"
+        : "border-white/10";
+
+  if (!src) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`inline-flex shrink-0 items-center justify-center border bg-black/30 text-[10px] uppercase tracking-[0.14em] text-zinc-500 ${roundedClass} ${borderClass}`}
+        style={{ width: size, height: size }}
+      >
+        {alt.slice(0, 2)}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`inline-flex shrink-0 overflow-hidden border bg-black/30 ${roundedClass} ${borderClass}`}
+      style={{ width: size, height: size }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        width={size}
+        height={size}
+        loading="lazy"
+        className="h-full w-full object-cover"
+      />
+    </span>
+  );
+}
+
+function RankBadgeVisual({
+  iconUrl,
+  label,
+  compact,
+}: {
+  iconUrl?: string | null;
+  label?: string | null;
+  compact?: boolean;
+}) {
+  if (!iconUrl && !label) {
+    return null;
+  }
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 border border-lime-300/15 bg-lime-300/5 ${
+        compact ? "px-2 py-1" : "px-2 py-1.5"
+      }`}
+      style={{
+        clipPath:
+          "polygon(0 6px, 6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
+      }}
+    >
+      <GameIcon src={iconUrl} alt={label ?? "Rank"} size={compact ? 20 : 24} shape="square" kind="rank" />
+      {!compact ? (
+        <span className="text-[10px] uppercase tracking-[0.16em] text-neon-lime">
+          {label ?? "Rank"}
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -20,6 +20,9 @@ type SteamProfileApi = {
   account_id?: number;
   personaname?: string;
   countrycode?: string | null;
+  avatar?: string;
+  avatarmedium?: string;
+  avatarfull?: string;
 };
 
 type PlayerMatchHistoryEntryApi = {
@@ -132,10 +135,19 @@ type PatchApi = {
   pub_date?: string;
 };
 
+type RankAssetApi = {
+  badge_level?: number;
+  rank?: number;
+  id?: number;
+  level?: number;
+  [key: string]: unknown;
+};
+
 type HeroCatalogRecord = {
   id: number;
   name: string;
   abilities: Map<number, string>;
+  iconUrl: string | null;
 };
 
 type ItemCatalogRecord = {
@@ -143,11 +155,18 @@ type ItemCatalogRecord = {
   name: string;
   cost: number;
   tier: number;
+  iconUrl: string | null;
+};
+
+type RankCatalogRecord = {
+  badgeLevel: number;
+  iconUrl: string | null;
 };
 
 type DeadlockAssetsCatalog = {
   heroesById: Map<number, HeroCatalogRecord>;
   itemsById: Map<number, ItemCatalogRecord>;
+  ranksByBadgeLevel: Map<number, RankCatalogRecord>;
 };
 
 type HeroEnrichment = {
@@ -259,6 +278,7 @@ export async function buildLiveDeadlockPlayerProfile(params: {
     .sort((a, b) => toInt(b.start_time) - toInt(a.start_time))[0] ?? null;
 
   const rankTier = formatRankTier(latestCard, latestMmrHistory);
+  const rankBadgeLevel = deriveRankBadgeLevel(latestCard, latestMmrHistory);
   const latestPlayerScore = finiteOrNull(latestMmrHistory?.player_score);
   const hiddenMmr = latestPlayerScore !== null ? Math.round(latestPlayerScore) : null;
 
@@ -304,6 +324,15 @@ export async function buildLiveDeadlockPlayerProfile(params: {
       rankTier,
       hiddenMmr,
       profileSeed: `deadlock-api-${accountId}`,
+      avatarUrl:
+        steamProfile?.avatarfull?.trim() ||
+        steamProfile?.avatarmedium?.trim() ||
+        steamProfile?.avatar?.trim() ||
+        null,
+      rankBadgeIconUrl:
+        (rankBadgeLevel > 0
+          ? assets.ranksByBadgeLevel.get(rankBadgeLevel)?.iconUrl
+          : null) ?? null,
     },
     aggregates: {
       totalMatches: matches.length,
@@ -391,6 +420,7 @@ async function buildLiveDeadlockMetaSnapshotUncached(): Promise<DeadlockMetaPayl
       const picks = wins + losses > 0 ? wins + losses : Math.max(0, toInt(row.matches));
       return {
         hero: assets.heroesById.get(heroId)?.name || `Hero ${heroId}`,
+        heroIconUrl: assets.heroesById.get(heroId)?.iconUrl ?? null,
         picks,
         wins,
         matches: Math.max(0, toInt(row.matches)),
@@ -444,7 +474,9 @@ async function buildLiveDeadlockMetaSnapshotUncached(): Promise<DeadlockMetaPayl
       const denom = wins + losses > 0 ? wins + losses : matches;
       return {
         hero: assets.heroesById.get(heroId)?.name || `Hero ${heroId}`,
+        heroIconUrl: assets.heroesById.get(heroId)?.iconUrl ?? null,
         item: assets.itemsById.get(itemId)?.name || `Item ${itemId}`,
+        itemIconUrl: assets.itemsById.get(itemId)?.iconUrl ?? null,
         sampleSize: matches,
         winRate: denom > 0 ? round1((wins / denom) * 100) : 0,
         avgPurchaseOrder: itemOrderRankByHeroAndItem.get(`${heroId}:${itemId}`) ?? 0,
@@ -583,6 +615,7 @@ function mapLiveMatchEntry(params: {
   return {
     matchId: String(matchId),
     hero: heroName,
+    heroIconUrl: assets.heroesById.get(heroId)?.iconUrl ?? null,
     result: toInt(entry.match_result) > 0 ? "WIN" : "LOSS",
     mode: mapMatchMode(entry, rankedMatchIds, matchId),
     patchVersion: "Deadlock API",
@@ -645,6 +678,7 @@ function buildHeroItemOrder(params: {
       tier: catalog?.tier ?? inferTierFromCost(catalog?.cost ?? 0),
       cost: catalog?.cost ?? 0,
       atSecond: avgBuyTime,
+      iconUrl: catalog?.iconUrl ?? null,
     };
   });
 }
@@ -729,9 +763,10 @@ async function getAssetsCatalog(): Promise<DeadlockAssetsCatalog> {
   }
 
   assetsCachePromise = (async () => {
-    const [heroesRaw, itemsRaw] = await Promise.all([
+    const [heroesRaw, itemsRaw, ranksRaw] = await Promise.all([
       fetchJson<any[]>(new URL("/v2/heroes", ASSETS_BASE_URL)),
       fetchJson<any[]>(new URL("/v2/items", ASSETS_BASE_URL)),
+      fetchJson<RankAssetApi[]>(new URL("/v2/ranks", ASSETS_BASE_URL)).catch(() => []),
     ]);
 
     const heroesById = new Map<number, HeroCatalogRecord>();
@@ -772,7 +807,12 @@ async function getAssetsCatalog(): Promise<DeadlockAssetsCatalog> {
         }
       }
 
-      heroesById.set(heroId, { id: heroId, name: heroName, abilities });
+      heroesById.set(heroId, {
+        id: heroId,
+        name: heroName,
+        abilities,
+        iconUrl: extractAssetImageUrl(hero, "hero"),
+      });
     }
 
     const itemsById = new Map<number, ItemCatalogRecord>();
@@ -794,10 +834,26 @@ async function getAssetsCatalog(): Promise<DeadlockAssetsCatalog> {
         1,
         toInt(item?.tier ?? item?.item_tier ?? item?.shop_tier) || inferTierFromCost(cost),
       );
-      itemsById.set(itemId, { id: itemId, name: itemName, cost, tier });
+      itemsById.set(itemId, {
+        id: itemId,
+        name: itemName,
+        cost,
+        tier,
+        iconUrl: extractAssetImageUrl(item, "item"),
+      });
     }
 
-    const catalog: DeadlockAssetsCatalog = { heroesById, itemsById };
+    const ranksByBadgeLevel = new Map<number, RankCatalogRecord>();
+    for (const rank of Array.isArray(ranksRaw) ? ranksRaw : []) {
+      const badgeLevel = toInt(rank?.badge_level ?? rank?.rank ?? rank?.id ?? rank?.level);
+      if (badgeLevel <= 0) {
+        continue;
+      }
+      const iconUrl = extractAssetImageUrl(rank, "rank");
+      ranksByBadgeLevel.set(badgeLevel, { badgeLevel, iconUrl });
+    }
+
+    const catalog: DeadlockAssetsCatalog = { heroesById, itemsById, ranksByBadgeLevel };
     assetsCache = { expiresAt: now + ASSETS_TTL_MS, data: catalog };
     return catalog;
   })();
@@ -883,6 +939,18 @@ function steamId64ToAccountId(steamId64: string) {
   return Number(accountId);
 }
 
+function deriveRankBadgeLevel(card: PlayerCardApi | null, mmr: MmrHistoryApi | null) {
+  const cardBadge = toInt(card?.ranked_badge_level);
+  if (cardBadge > 0) {
+    return cardBadge;
+  }
+  const mmrRank = toInt(mmr?.rank);
+  if (mmrRank > 0) {
+    return mmrRank;
+  }
+  return 0;
+}
+
 function formatRankTier(card: PlayerCardApi | null, mmr: MmrHistoryApi | null) {
   const badgeLevel = toInt(card?.ranked_badge_level);
   if (badgeLevel > 0) {
@@ -898,6 +966,167 @@ function formatRankTier(card: PlayerCardApi | null, mmr: MmrHistoryApi | null) {
     return `Rank ${Math.max(0, rankedRank)}.${Math.max(0, rankedSubrank)}`;
   }
   return null;
+}
+
+function extractAssetImageUrl(entity: unknown, kind: "hero" | "item" | "rank") {
+  if (!entity || typeof entity !== "object") {
+    return null;
+  }
+
+  const candidatePaths =
+    kind === "hero"
+      ? [
+          "icon",
+          "icon_url",
+          "image",
+          "image_url",
+          "small_image",
+          "portrait_image",
+          "images.icon",
+          "images.small",
+          "images.portrait",
+          "images.hero",
+          "images.card",
+          "images.top_bar",
+        ]
+      : kind === "item"
+        ? [
+            "icon",
+            "icon_url",
+            "image",
+            "image_url",
+            "shop_image",
+            "images.icon",
+            "images.small",
+            "images.shop",
+            "images.item",
+          ]
+        : [
+            "icon",
+            "icon_url",
+            "image",
+            "image_url",
+            "badge_image",
+            "images.icon",
+            "images.badge",
+            "images.small",
+          ];
+
+  for (const path of candidatePaths) {
+    const raw = getByPath(entity, path);
+    const url = normalizeAssetUrl(asUrlString(raw));
+    if (url) {
+      return url;
+    }
+  }
+
+  const allUrls = collectUrlsDeep(entity);
+  if (allUrls.length === 0) {
+    return null;
+  }
+
+  const scored = allUrls
+    .map((url) => ({ url: normalizeAssetUrl(url), score: scoreAssetUrl(url, kind) }))
+    .filter((entry): entry is { url: string; score: number } => Boolean(entry.url))
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.url ?? null;
+}
+
+function scoreAssetUrl(url: string, kind: "hero" | "item" | "rank") {
+  const lower = url.toLowerCase();
+  let score = 0;
+  if (lower.includes("icon")) score += 20;
+  if (lower.includes("small")) score += 8;
+  if (lower.includes("thumb")) score += 8;
+  if (lower.includes("badge")) score += kind === "rank" ? 20 : 2;
+  if (lower.includes("portrait")) score += kind === "hero" ? 15 : 2;
+  if (lower.includes("hero")) score += kind === "hero" ? 10 : 0;
+  if (lower.includes("item")) score += kind === "item" ? 10 : 0;
+  if (/\.(png|webp|jpg|jpeg|avif)(\?|$)/.test(lower)) score += 4;
+  if (lower.includes("http")) score += 1;
+  return score;
+}
+
+function collectUrlsDeep(input: unknown, depth = 0, maxDepth = 5, acc: string[] = []) {
+  if (depth > maxDepth || input === null || input === undefined) {
+    return acc;
+  }
+
+  if (typeof input === "string") {
+    const url = asUrlString(input);
+    if (url) {
+      acc.push(url);
+    }
+    return acc;
+  }
+
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      collectUrlsDeep(item, depth + 1, maxDepth, acc);
+    }
+    return acc;
+  }
+
+  if (typeof input === "object") {
+    for (const value of Object.values(input as Record<string, unknown>)) {
+      collectUrlsDeep(value, depth + 1, maxDepth, acc);
+    }
+  }
+
+  return acc;
+}
+
+function getByPath(input: unknown, path: string): unknown {
+  if (!input || typeof input !== "object") {
+    return undefined;
+  }
+  const segments = path.split(".");
+  let current: unknown = input;
+  for (const segment of segments) {
+    if (!current || typeof current !== "object") {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function asUrlString(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("/")) {
+    return trimmed;
+  }
+  if (/^[A-Za-z0-9/_-]+\.(png|webp|jpg|jpeg|avif)$/i.test(trimmed)) {
+    return trimmed;
+  }
+  return null;
+}
+
+function normalizeAssetUrl(url: string | null) {
+  if (!url) {
+    return null;
+  }
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+  try {
+    if (url.startsWith("/")) {
+      return new URL(url, ASSETS_BASE_URL).toString();
+    }
+    return new URL(`/${url}`, ASSETS_BASE_URL).toString();
+  } catch {
+    return null;
+  }
 }
 
 function deriveFavoriteHeroFromMatches(matches: DeadlockMatchDetail[]) {
