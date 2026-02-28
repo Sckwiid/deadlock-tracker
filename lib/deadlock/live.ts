@@ -615,7 +615,7 @@ async function loadHeroEnrichments(params: {
 
   await Promise.all(
     params.heroIds.map(async (heroId) => {
-      const [metrics, itemRows, abilityOrders] = await Promise.all([
+      const [metrics, itemRowsRaw, abilityOrdersRaw] = await Promise.all([
         fetchDeadlockJson<MetricsMapApi>("/v1/analytics/player-stats/metrics", {
           account_ids: [params.accountId],
           hero_ids: String(heroId),
@@ -635,10 +635,31 @@ async function loadHeroEnrichments(params: {
         }).catch(() => []),
       ]);
 
+      let itemRows = Array.isArray(itemRowsRaw) ? itemRowsRaw : [];
+      if (itemRows.length === 0) {
+        itemRows = await fetchDeadlockJson<ItemStatsApi[]>("/v1/analytics/item-stats", {
+          hero_id: heroId,
+          game_mode: "normal",
+          min_matches: 1,
+        }).catch(() => []);
+      }
+
+      let abilityOrders = Array.isArray(abilityOrdersRaw) ? abilityOrdersRaw : [];
+      if (abilityOrders.length === 0) {
+        abilityOrders = await fetchDeadlockJson<AbilityOrderStatsApi[]>(
+          "/v1/analytics/ability-order-stats",
+          {
+            hero_id: heroId,
+            game_mode: "normal",
+            min_matches: 1,
+          },
+        ).catch(() => []);
+      }
+
       result.set(heroId, {
         metrics,
-        itemRows: Array.isArray(itemRows) ? itemRows : [],
-        abilityOrders: Array.isArray(abilityOrders) ? abilityOrders : [],
+        itemRows,
+        abilityOrders,
       });
     }),
   );
@@ -761,7 +782,18 @@ function buildHeroItemOrder(params: {
     .slice(0, 12);
 
   if (rows.length === 0) {
-    return [];
+    const fallbackItems = [...params.assets.itemsById.values()]
+      .sort((a, b) => a.tier - b.tier || a.cost - b.cost || a.name.localeCompare(b.name))
+      .slice(0, 10);
+
+    return fallbackItems.map((item, index) => ({
+      order: index + 1,
+      itemName: item.name,
+      tier: item.tier,
+      cost: item.cost,
+      atSecond: Math.max(45, (index + 1) * 180),
+      iconUrl: item.iconUrl ?? null,
+    }));
   }
 
   return rows.map((row, index) => {
@@ -796,16 +828,21 @@ function buildHeroSkillOrder(params: {
     })[0];
 
   const abilityIds = Array.isArray(bestOrder?.abilities) ? bestOrder.abilities.slice(0, 16) : [];
+  const heroAbilities = params.assets.heroesById.get(params.heroId)?.abilities ?? new Map<number, string>();
 
-  if (abilityIds.length === 0) {
+  const fallbackAbilityIds =
+    abilityIds.length > 0
+      ? abilityIds
+      : buildFallbackAbilityIds(Array.from(heroAbilities.keys()));
+
+  if (fallbackAbilityIds.length === 0) {
     return [];
   }
 
-  const heroAbilities = params.assets.heroesById.get(params.heroId)?.abilities ?? new Map<number, string>();
   const counters = new Map<string, number>();
-  const totalSteps = abilityIds.length;
+  const totalSteps = fallbackAbilityIds.length;
 
-  return abilityIds.map((abilityIdRaw, index) => {
+  return fallbackAbilityIds.map((abilityIdRaw, index) => {
     const abilityId = toInt(abilityIdRaw);
     const abilityLabel = heroAbilities.get(abilityId) || `Ability ${abilityId}`;
     const nextLevel = (counters.get(abilityLabel) ?? 0) + 1;
@@ -872,9 +909,10 @@ async function getAssetsCatalog(): Promise<DeadlockAssetsCatalog> {
         continue;
       }
       const heroName =
-        toStringSafe(hero?.name) ||
         toStringSafe(hero?.localized_name) ||
         toStringSafe(hero?.display_name) ||
+        normalizeSlugLabel(toStringSafe(hero?.name)) ||
+        normalizeSlugLabel(toStringSafe(hero?.class_name)) ||
         `Hero ${heroId}`;
 
       const abilities = new Map<number, string>();
@@ -894,10 +932,10 @@ async function getAssetsCatalog(): Promise<DeadlockAssetsCatalog> {
             continue;
           }
           const abilityName =
-            toStringSafe(ability?.name) ||
             toStringSafe(ability?.localized_name) ||
             toStringSafe(ability?.display_name) ||
-            toStringSafe(ability?.class_name) ||
+            normalizeSlugLabel(toStringSafe(ability?.name)) ||
+            normalizeSlugLabel(toStringSafe(ability?.class_name)) ||
             `Ability ${abilityId}`;
           abilities.set(abilityId, abilityName);
         }
@@ -918,9 +956,9 @@ async function getAssetsCatalog(): Promise<DeadlockAssetsCatalog> {
         continue;
       }
       const itemName =
-        toStringSafe(item?.name) ||
         toStringSafe(item?.localized_name) ||
         toStringSafe(item?.display_name) ||
+        normalizeSlugLabel(toStringSafe(item?.name)) ||
         `Item ${itemId}`;
       const cost = Math.max(
         0,
@@ -1317,4 +1355,34 @@ function parseEnvInt(name: string, fallback: number) {
   }
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeSlugLabel(value: string) {
+  if (!value) {
+    return "";
+  }
+  const withoutPrefix = value.replace(/^(hero_|item_|ability_)/i, "");
+  const withSpaces = withoutPrefix
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!withSpaces) {
+    return "";
+  }
+  return withSpaces.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function buildFallbackAbilityIds(abilityIds: number[]) {
+  const cleaned = abilityIds.filter((id) => Number.isFinite(id) && id > 0).slice(0, 4);
+  if (cleaned.length === 0) {
+    return [1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4];
+  }
+  const result: number[] = [];
+  for (let index = 0; index < 16; index += 1) {
+    const abilityId = cleaned[index % cleaned.length] ?? cleaned[0];
+    if (abilityId) {
+      result.push(abilityId);
+    }
+  }
+  return result;
 }

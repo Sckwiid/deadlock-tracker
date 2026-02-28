@@ -45,6 +45,11 @@ export default function HomePage() {
   const [metaLoading, setMetaLoading] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
+  const [versusOpen, setVersusOpen] = useState(false);
+  const [versusQuery, setVersusQuery] = useState("");
+  const [versusPayload, setVersusPayload] = useState<DeadlockPlayerProfilePayload | null>(null);
+  const [versusLoading, setVersusLoading] = useState(false);
+  const [versusError, setVersusError] = useState<string | null>(null);
 
   const selectedMatch = useMemo(() => {
     if (!playerPayload) {
@@ -60,12 +65,18 @@ export default function HomePage() {
     void loadMeta();
     const params = new URLSearchParams(window.location.search);
     const steamIdFromUrl = params.get("steamId64")?.trim() ?? "";
+    const versusSteamIdFromUrl = params.get("vsSteamId64")?.trim() ?? "";
     const countFromUrl = Number.parseInt(params.get("count")?.trim() ?? "20", 10);
     const initialSteamId = /^\d{17}$/.test(steamIdFromUrl) ? steamIdFromUrl : DEFAULT_STEAM_ID64;
     const initialCount =
       Number.isFinite(countFromUrl) && countFromUrl >= 1 && countFromUrl <= 50 ? countFromUrl : 20;
     setQuery(initialSteamId);
     setCount(String(initialCount));
+    if (/^\d{17}$/.test(versusSteamIdFromUrl)) {
+      setVersusOpen(true);
+      setVersusQuery(versusSteamIdFromUrl);
+      void loadVersus(versusSteamIdFromUrl, initialCount);
+    }
     void loadPlayer(initialSteamId, initialCount);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -142,6 +153,39 @@ export default function HomePage() {
     }
   }
 
+  async function loadVersus(steamId64: string, matchCount: number) {
+    setVersusLoading(true);
+    setVersusError(null);
+    try {
+      const response = await fetch(
+        `/api/deadlock/player?steamId64=${encodeURIComponent(steamId64)}&count=${matchCount}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        },
+      );
+
+      const json = (await response.json()) as DeadlockPlayerLookupResponse;
+      if (!json.ok) {
+        setVersusError(json.error);
+        setVersusPayload(null);
+        return;
+      }
+      if (!response.ok) {
+        setVersusError("Réponse API Versus invalide.");
+        setVersusPayload(null);
+        return;
+      }
+
+      setVersusPayload(json);
+    } catch {
+      setVersusError("Impossible de charger le joueur Versus.");
+      setVersusPayload(null);
+    } finally {
+      setVersusLoading(false);
+    }
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const steamId64 = query.trim();
@@ -153,6 +197,19 @@ export default function HomePage() {
     }
 
     await loadPlayer(steamId64, parsedCount);
+    if (versusOpen && /^\d{17}$/.test(versusQuery.trim())) {
+      await loadVersus(versusQuery.trim(), parsedCount);
+    }
+  }
+
+  async function onVersusSubmit() {
+    const steamId64 = versusQuery.trim();
+    const parsedCount = clamp(Number.parseInt(count, 10) || 20, 1, 50);
+    if (!/^\d{17}$/.test(steamId64)) {
+      setVersusError("Entre un SteamID64 valide pour la comparaison.");
+      return;
+    }
+    await loadVersus(steamId64, parsedCount);
   }
 
   return (
@@ -166,19 +223,15 @@ export default function HomePage() {
           className="flex flex-col items-start gap-4"
         >
           <span className="hero-kicker px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em]">
-            Deadlock Tracker • SteamID64 • Match Analytics • Meta Dashboard
+            Deadlock Tracker • Match Analytics • Meta Dashboard
           </span>
 
           <div className="max-w-5xl">
             <h1 className="display-text text-5xl font-extrabold uppercase leading-[0.88] tracking-tight text-white sm:text-6xl lg:text-7xl">
-              Deadlock stats <span className="text-neon-pink">profil + matchs</span> et{" "}
-              <span className="text-neon-cyan">méta globale</span> dans la même interface.
+              Deadlock <span className="text-neon-pink">stats profil</span> +{" "}
+              <span className="text-neon-cyan">matchs</span> et{" "}
+              <span className="text-neon-lime">méta globale</span> dans la même interface.
             </h1>
-            <p className="mt-4 max-w-3xl text-sm text-zinc-300 sm:text-base">
-              Même direction artistique que ton tracker 2XKO, adaptée à Deadlock: profil joueur,
-              historique de matchs, détails KDA / Souls / build / skill build et agrégation méta
-              (pick rate, win rate, ban rate, items).
-            </p>
           </div>
         </motion.div>
 
@@ -257,7 +310,60 @@ export default function HomePage() {
               <Crown className="h-3.5 w-3.5" />
               Leaderboard
             </Link>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => {
+                setVersusOpen((prev) => !prev);
+                setVersusError(null);
+              }}
+              className="inline-flex items-center gap-1 text-neon-pink hover:brightness-110"
+            >
+              <Swords className="h-3.5 w-3.5" />
+              Versus
+            </button>
           </div>
+
+          {versusOpen ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+              <div className="relative">
+                <label htmlFor="versus-steam-id64" className="sr-only">
+                  SteamID64 joueur comparé
+                </label>
+                <input
+                  id="versus-steam-id64"
+                  type="text"
+                  placeholder="SteamID64 ami / rival"
+                  value={versusQuery}
+                  onChange={(event) => setVersusQuery(event.target.value)}
+                  className="h-12 w-full bg-black/30 px-4 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-pink-300/40"
+                  autoComplete="off"
+                  spellCheck={false}
+                  inputMode="numeric"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void onVersusSubmit()}
+                disabled={versusLoading}
+                className="display-text inline-flex h-12 min-w-40 items-center justify-center gap-2 bg-neon-cyan px-5 text-lg font-extrabold uppercase tracking-[0.12em] text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+                style={{
+                  clipPath:
+                    "polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)",
+                }}
+              >
+                {versusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {versusLoading ? "..." : "Comparer"}
+              </button>
+            </div>
+          ) : null}
+
+          {versusError ? (
+            <div className="mt-3">
+              <ErrorBanner message={versusError} compact />
+            </div>
+          ) : null}
 
           {playerError ? (
             <ErrorBanner message={playerError} />
@@ -672,31 +778,38 @@ export default function HomePage() {
                         </span>
                       </div>
 
-                      <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-                        {selectedMatch.build.items.map((item) => (
-                          <div
-                            key={`${selectedMatch.matchId}-item-${item.order}`}
-                            className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-3 border border-white/5 bg-black/20 px-3 py-2"
-                          >
-                            <span className="display-text text-lg font-bold text-neon-cyan">
-                              #{item.order}
-                            </span>
-                            <GameIcon
-                              src={item.iconUrl}
-                              alt={item.itemName}
-                              size={32}
-                              shape="square"
-                              kind="item"
-                            />
-                            <div className="min-w-0">
-                              <p className="truncate text-sm text-white">{item.itemName}</p>
-                              <p className="text-xs text-zinc-400">
-                                Tier {item.tier} • {formatNumber(item.cost)} souls • {formatDuration(item.atSecond)}
-                              </p>
+                    <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                        {selectedMatch.build.items.length > 0 ? (
+                          selectedMatch.build.items.map((item) => (
+                            <div
+                              key={`${selectedMatch.matchId}-item-${item.order}`}
+                              className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-3 border border-white/5 bg-black/20 px-3 py-2"
+                            >
+                              <span className="display-text text-lg font-bold text-neon-cyan">
+                                #{item.order}
+                              </span>
+                              <GameIcon
+                                src={item.iconUrl}
+                                alt={item.itemName}
+                                size={32}
+                                shape="square"
+                                kind="item"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm text-white">{item.itemName}</p>
+                                <p className="text-xs text-zinc-400">
+                                  Tier {item.tier} • {formatNumber(item.cost)} souls •{" "}
+                                  {formatDuration(item.atSecond)}
+                                </p>
+                              </div>
+                              <ChevronRight className="h-4 w-4 text-zinc-500" />
                             </div>
-                            <ChevronRight className="h-4 w-4 text-zinc-500" />
-                          </div>
-                        ))}
+                          ))
+                        ) : (
+                          <p className="text-sm text-zinc-400">
+                            Ordre d’achat non disponible pour ce match.
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -712,26 +825,32 @@ export default function HomePage() {
                     </div>
 
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                      {selectedMatch.build.skills.map((skill) => (
-                        <div
-                          key={`${selectedMatch.matchId}-skill-${skill.order}`}
-                          className="border border-white/5 bg-black/20 px-3 py-2"
-                          style={{
-                            clipPath:
-                              "polygon(0 6px, 6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
-                          }}
-                        >
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-400">
-                            Upgrade #{skill.order}
-                          </p>
-                          <p className="display-text mt-1 text-lg font-bold text-white">
-                            {skill.ability}
-                          </p>
-                          <p className="mt-1 text-xs text-zinc-400">
-                            Niveau {skill.levelAfter} • {formatDuration(skill.atSecond)}
-                          </p>
-                        </div>
-                      ))}
+                      {selectedMatch.build.skills.length > 0 ? (
+                        selectedMatch.build.skills.map((skill) => (
+                          <div
+                            key={`${selectedMatch.matchId}-skill-${skill.order}`}
+                            className="border border-white/5 bg-black/20 px-3 py-2"
+                            style={{
+                              clipPath:
+                                "polygon(0 6px, 6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)",
+                            }}
+                          >
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-zinc-400">
+                              Upgrade #{skill.order}
+                            </p>
+                            <p className="display-text mt-1 text-lg font-bold text-white">
+                              {skill.ability}
+                            </p>
+                            <p className="mt-1 text-xs text-zinc-400">
+                              Niveau {skill.levelAfter} • {formatDuration(skill.atSecond)}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-zinc-400">
+                          Ordre d’amélioration non disponible pour ce match.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -746,6 +865,14 @@ export default function HomePage() {
           </div>
 
           <div className="space-y-6">
+            {versusOpen ? (
+              <VersusPanel
+                basePlayer={playerPayload}
+                versusPlayer={versusPayload}
+                isLoading={versusLoading}
+              />
+            ) : null}
+
             <div className="panel-cut panel-cut-lime p-5 shadow-panel">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="display-text text-2xl font-bold uppercase text-white">
@@ -1133,7 +1260,7 @@ function GameIcon({
         className={`inline-flex shrink-0 items-center justify-center border bg-black/30 text-[10px] uppercase tracking-[0.14em] text-zinc-500 ${roundedClass} ${borderClass}`}
         style={{ width: size, height: size }}
       >
-        {alt.slice(0, 2)}
+        {buildInitials(alt)}
       </span>
     );
   }
@@ -1267,4 +1394,115 @@ function round1(value: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function buildInitials(label: string) {
+  const cleaned = label.replace(/[^A-Za-z0-9 ]+/g, " ").trim();
+  if (!cleaned) {
+    return "NA";
+  }
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+function VersusPanel({
+  basePlayer,
+  versusPlayer,
+  isLoading,
+}: {
+  basePlayer: DeadlockPlayerProfilePayload | null;
+  versusPlayer: DeadlockPlayerProfilePayload | null;
+  isLoading: boolean;
+}) {
+  return (
+    <div className="panel-cut p-5 shadow-panel">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="display-text text-2xl font-bold uppercase text-white">Versus</h3>
+        <span className="text-xs uppercase tracking-[0.16em] text-zinc-400">Comparaison</span>
+      </div>
+
+      {!basePlayer ? (
+        <p className="text-sm text-zinc-400">Charge d’abord un joueur principal.</p>
+      ) : isLoading ? (
+        <p className="text-sm text-zinc-400">Comparaison en cours...</p>
+      ) : !versusPlayer ? (
+        <p className="text-sm text-zinc-400">Ajoute un SteamID64 et clique sur “Comparer”.</p>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 border border-white/5 bg-black/20 p-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Joueur A</p>
+              <p className="display-text text-xl text-white">{basePlayer.player.personaName}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Joueur B</p>
+              <p className="display-text text-xl text-white">{versusPlayer.player.personaName}</p>
+            </div>
+          </div>
+
+          <VersusRow
+            label="Winrate"
+            leftValue={`${basePlayer.aggregates.winrate}%`}
+            rightValue={`${versusPlayer.aggregates.winrate}%`}
+            leftScore={basePlayer.aggregates.winrate}
+            rightScore={versusPlayer.aggregates.winrate}
+          />
+          <VersusRow
+            label="KDA moyen"
+            leftValue={String(basePlayer.aggregates.averageKdaRatio)}
+            rightValue={String(versusPlayer.aggregates.averageKdaRatio)}
+            leftScore={basePlayer.aggregates.averageKdaRatio}
+            rightScore={versusPlayer.aggregates.averageKdaRatio}
+          />
+          <VersusRow
+            label="SPM moyen"
+            leftValue={String(basePlayer.aggregates.averageSpm)}
+            rightValue={String(versusPlayer.aggregates.averageSpm)}
+            leftScore={basePlayer.aggregates.averageSpm}
+            rightScore={versusPlayer.aggregates.averageSpm}
+          />
+          <VersusRow
+            label="Matchs sample"
+            leftValue={String(basePlayer.aggregates.totalMatches)}
+            rightValue={String(versusPlayer.aggregates.totalMatches)}
+            leftScore={basePlayer.aggregates.totalMatches}
+            rightScore={versusPlayer.aggregates.totalMatches}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VersusRow({
+  label,
+  leftValue,
+  rightValue,
+  leftScore,
+  rightScore,
+}: {
+  label: string;
+  leftValue: string;
+  rightValue: string;
+  leftScore: number;
+  rightScore: number;
+}) {
+  const leftWins = leftScore > rightScore;
+  const rightWins = rightScore > leftScore;
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 border border-white/5 bg-black/20 px-3 py-2">
+      <span className={`text-sm font-semibold ${leftWins ? "text-neon-lime" : "text-zinc-200"}`}>
+        {leftValue}
+      </span>
+      <span className="text-xs uppercase tracking-[0.14em] text-zinc-400">{label}</span>
+      <span
+        className={`text-right text-sm font-semibold ${rightWins ? "text-neon-cyan" : "text-zinc-200"}`}
+      >
+        {rightValue}
+      </span>
+    </div>
+  );
 }
