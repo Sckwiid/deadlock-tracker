@@ -488,7 +488,7 @@ export default function HomePage() {
             {playerPayload ? (
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="panel-cut p-5 shadow-panel">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <h3 className="display-text text-2xl font-bold uppercase text-white">
                       Stats Globales
                     </h3>
@@ -546,7 +546,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="panel-cut panel-cut-lime p-5 shadow-panel">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <h3 className="display-text text-2xl font-bold uppercase text-white">
                       Historique des Matchs
                     </h3>
@@ -561,7 +561,7 @@ export default function HomePage() {
                         key={match.matchId}
                         type="button"
                         onClick={() => setSelectedMatchId(match.matchId)}
-                        className={`grid w-full grid-cols-[auto_auto_1fr_auto] items-center gap-3 border px-3 py-2 text-left transition ${
+                        className={`grid w-full grid-cols-[auto_auto_1fr] items-center gap-3 border px-3 py-2 text-left transition sm:grid-cols-[auto_auto_1fr_auto] ${
                           selectedMatch?.matchId === match.matchId
                             ? "border-cyan-300/30 bg-cyan-300/5"
                             : "border-white/5 bg-black/20 hover:border-white/15"
@@ -603,7 +603,9 @@ export default function HomePage() {
                           </p>
                         </div>
 
-                        <span className="text-xs text-zinc-400">{formatDuration(match.durationSeconds)}</span>
+                        <span className="hidden text-xs text-zinc-400 sm:inline">
+                          {formatDuration(match.durationSeconds)}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -612,7 +614,7 @@ export default function HomePage() {
             ) : null}
 
             <div className="panel-cut p-5 shadow-panel">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="display-text text-2xl font-bold uppercase text-white">
                   Détails de Match
                 </h3>
@@ -718,7 +720,7 @@ export default function HomePage() {
 
                   <div className="grid gap-6 lg:grid-cols-2">
                     <div className="panel-cut p-5 shadow-panel">
-                      <div className="mb-4 flex items-center justify-between">
+                      <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <h4 className="display-text text-xl font-bold uppercase text-white">
                           Économie (Souls)
                         </h4>
@@ -769,7 +771,7 @@ export default function HomePage() {
                     </div>
 
                     <div className="panel-cut panel-cut-lime p-5 shadow-panel">
-                      <div className="mb-4 flex items-center justify-between">
+                      <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <h4 className="display-text text-xl font-bold uppercase text-white">
                           Build & Équipement
                         </h4>
@@ -815,7 +817,7 @@ export default function HomePage() {
                   </div>
 
                   <div className="panel-cut p-5 shadow-panel">
-                    <div className="mb-4 flex items-center justify-between">
+                    <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <h4 className="display-text text-xl font-bold uppercase text-white">
                         Skill Build
                       </h4>
@@ -874,7 +876,7 @@ export default function HomePage() {
             ) : null}
 
             <div className="panel-cut panel-cut-lime p-5 shadow-panel">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="display-text text-2xl font-bold uppercase text-white">
                   Méta Globale (Héros)
                 </h3>
@@ -922,7 +924,7 @@ export default function HomePage() {
             </div>
 
             <div className="panel-cut p-5 shadow-panel">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="display-text text-2xl font-bold uppercase text-white">
                   Win Rate par Item
                 </h3>
@@ -999,11 +1001,11 @@ function SectionHeader({
   suffix?: string;
 }) {
   return (
-    <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-zinc-400">
+    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] text-zinc-400">
       {icon}
       <span>{title}</span>
       <span className="h-px flex-1 bg-white/10" />
-      {suffix ? <span>{suffix}</span> : null}
+      {suffix ? <span className="hidden sm:inline">{suffix}</span> : null}
     </div>
   );
 }
@@ -1208,17 +1210,17 @@ function MetaHeroRow({
 }) {
   return (
     <div className="border border-white/5 bg-black/20 px-3 py-3">
-      <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+      <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <GameIcon src={stat.heroIconUrl} alt={stat.hero} size={30} shape="square" kind="hero" />
-            <p className="truncate text-sm text-white">{stat.hero}</p>
+            <GameIcon src={stat.heroIconUrl} alt={stat.hero} size={34} shape="square" kind="hero" />
+            <p className="text-sm leading-tight text-white break-words">{stat.hero}</p>
           </div>
-          <p className="text-xs text-zinc-400">
+          <p className="mt-1 text-xs leading-snug text-zinc-400 break-words">
             {stat.picks} picks / {totalMatches} matchs • {stat.wins} wins
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-right">
+        <div className="grid grid-cols-3 gap-2">
           <MetaStatBadge label="Pick" value={`${stat.pickRate}%`} tone="cyan" />
           <MetaStatBadge label="Win" value={`${stat.winRate}%`} tone="lime" />
           <MetaStatBadge
@@ -1276,7 +1278,7 @@ function GameIcon({
         width={size}
         height={size}
         loading="lazy"
-        className="h-full w-full object-cover"
+        className="h-full w-full object-contain p-0.5"
       />
     </span>
   );
@@ -1331,7 +1333,7 @@ function MetaStatBadge({
         ? "text-neon-cyan"
         : "text-neon-lime";
   return (
-    <div className="min-w-[66px] border border-white/5 bg-black/30 px-2 py-1">
+    <div className="min-w-0 border border-white/5 bg-black/30 px-2 py-1 text-center">
       <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-400">{label}</p>
       <p className={`display-text text-base font-bold ${toneClass}`}>{value}</p>
     </div>
@@ -1419,7 +1421,7 @@ function VersusPanel({
 }) {
   return (
     <div className="panel-cut p-5 shadow-panel">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="display-text text-2xl font-bold uppercase text-white">Versus</h3>
         <span className="text-xs uppercase tracking-[0.16em] text-zinc-400">Comparaison</span>
       </div>
